@@ -1,0 +1,56 @@
+name: Busca DOE-SC
+
+on:
+  # Quinzenal: dia 1 e dia 15 de cada mês às 8h (horário de Brasília = 11h UTC)
+  schedule:
+    - cron: '0 11 1,15 * *'
+
+  # Permite disparar manualmente pelo site do GitHub (botão "Run workflow")
+  workflow_dispatch:
+
+jobs:
+  busca:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # necessário para commitar o histórico de volta
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar busca no DOE-SC
+        env:
+          CLIENTS_FILE: ./clientes.txt
+          CSV_DIR: ./csv
+          HISTORY_PATH: ./data/vistos.json
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: npm run search
+
+      - name: Salvar histórico no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/vistos.json
+          if git diff --staged --quiet; then
+            echo "Nenhuma novidade — histórico não alterado."
+          else
+            git commit -m "chore: atualiza histórico após busca de $(date '+%d/%m/%Y')"
+            git push
+          fi
