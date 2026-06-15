@@ -1,0 +1,26 @@
+{
+  "name": "push-doe-sc",
+  "version": "1.0.0",
+  "description": "Monitor semanal do Diário Oficial do Estado de SC para clientes de trânsito",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "search": "ts-node src/index.ts --once",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "exportar-clientes": "ts-node scripts/exportar-clientes.ts"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "nodemailer": "^8.0.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/nodemailer": "^8.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}
