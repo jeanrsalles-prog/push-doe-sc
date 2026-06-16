@@ -2,10 +2,6 @@ node_modules/
 dist/
 .env
 csv/
-# dados pessoais de clientes — NÃO versionar (LGPD)
 clientes.txt
 *.xlsx
 data/vistos.json
-# arquivos de teste temporários
-_*.js
-.write_test_xyz
