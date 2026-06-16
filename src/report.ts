@@ -18,8 +18,34 @@ function statusTexto(r: ResultadoBusca): string {
 }
 
 /**
+ * Neutraliza uma célula de CSV. Dois riscos são tratados aqui:
+ *  - Injeção de fórmula: o Excel/Sheets executa células que começam com
+ *    = + - @ (ou tab/CR). Prefixamos com apóstrofo para forçar texto.
+ *  - Quebra de colunas: valores com ; aspas ou quebra de linha são envolvidos
+ *    em aspas duplas (com as aspas internas duplicadas), conforme RFC 4180.
+ * Isso evita execução acidental de fórmula vinda do edital e planilha
+ * desalinhada quando um nome/resumo contém o separador.
+ */
+function csvCell(valor: unknown): string {
+  let s = valor === null || valor === undefined ? '' : String(valor)
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+  if (/[";\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"'
+  return s
+}
+
+/** Mantém só caracteres seguros para nome de arquivo (evita path traversal). */
+function sanitizarNomeArquivo(trecho: string): string {
+  return (
+    String(trecho)
+      .replace(/[^\w.-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[._]+|[._]+$/g, '') || 'edicao'
+  )
+}
+
+/**
  * Gera um arquivo CSV por edição (nrJornal) encontrada.
- * Formato do nome: dd-mm-aaaa-nrJornal.csv
+ * Formato do nome: dd-mm-aaaa-nrJornal.csv (saneado).
  * Retorna lista de caminhos gerados.
  */
 export function gerarCSVs(resultados: ResultadoBusca[]): string[] {
@@ -29,7 +55,6 @@ export function gerarCSVs(resultados: ResultadoBusca[]): string[] {
     fs.mkdirSync(CONFIG.CSV_DIR, { recursive: true })
   }
 
-  // Agrupa por edição
   const porJornal = new Map<string, ResultadoBusca[]>()
   for (const r of resultados) {
     if (!porJornal.has(r.nrJornal)) porJornal.set(r.nrJornal, [])
@@ -39,18 +64,14 @@ export function gerarCSVs(resultados: ResultadoBusca[]): string[] {
   const arquivosGerados: string[] = []
 
   for (const [nrJornal, itens] of porJornal) {
-    const pubData = formatarData(itens[0].publicacao)         // dd/mm/aaaa
+    const pubData = formatarData(itens[0].publicacao)
     const [dia, mes, ano] = pubData.split('/')
-    const nomeArquivo = `${dia}-${mes}-${ano}-${nrJornal}.csv`
+    const nomeArquivo = `${sanitizarNomeArquivo(`${dia}-${mes}-${ano}-${nrJornal}`)}.csv`
     const caminhoArquivo = path.join(CONFIG.CSV_DIR, nomeArquivo)
 
     const linhas: string[] = []
-
-    // Linha de título com número do edital e data
-    linhas.push(`Edição Nº ${nrJornal} — ${pubData}`)
+    linhas.push(csvCell(`Edição Nº ${nrJornal} — ${pubData}`))
     linhas.push('')
-
-    // Cabeçalho das colunas
     linhas.push(
       [
         'Status',
@@ -61,10 +82,11 @@ export function gerarCSVs(resultados: ResultadoBusca[]): string[] {
         'Data Publicação',
         'Prazo (dias)',
         'Data Final para Recurso',
-      ].join(';')
+      ]
+        .map(csvCell)
+        .join(';')
     )
 
-    // Linhas de dados — confirmados primeiro, depois por nome
     const ordenados = [...itens].sort((a, b) => {
       if (a.confirmacao !== b.confirmacao) return a.confirmacao === 'CONFIRMADO' ? -1 : 1
       return a.clienteNome.localeCompare(b.clienteNome)
@@ -80,17 +102,53 @@ export function gerarCSVs(resultados: ResultadoBusca[]): string[] {
           formatarData(r.publicacao),
           r.prazo ?? '',
           r.dataFinal ?? '',
-        ].join(';')
+        ]
+          .map(csvCell)
+          .join(';')
       )
     }
 
     // BOM UTF-8 para o Excel abrir corretamente com acentos
-    fs.writeFileSync(caminhoArquivo, '\uFEFF' + linhas.join('\n'), 'utf8')
+    fs.writeFileSync(caminhoArquivo, '﻿' + linhas.join('\n'), 'utf8')
     arquivosGerados.push(caminhoArquivo)
     console.log(`  [CSV] Salvo: ${nomeArquivo} (${itens.length} resultado(s))`)
   }
 
   return arquivosGerados
+}
+
+/**
+ * Grava resultados.json com todos os campos de cada achado — fonte que o
+ * gerador de planilha/painel (scripts/montar_relatorio.py) consome. Inclui o
+ * ID, que permite preservar o bloco de controle entre execuções.
+ */
+export function gerarResultadosJSON(resultados: ResultadoBusca[]): string | null {
+  if (!fs.existsSync(CONFIG.CSV_DIR)) {
+    fs.mkdirSync(CONFIG.CSV_DIR, { recursive: true })
+  }
+  const caminho = path.join(CONFIG.CSV_DIR, 'resultados.json')
+  const payload = {
+    geradoEm: new Date().toISOString(),
+    total: resultados.length,
+    resultados: resultados.map((r) => ({
+      id: r.materiaId,
+      edicao: r.nrJornal,
+      status: r.confirmacao,
+      motivoConferencia: r.motivoConferencia,
+      cliente: r.clienteNome,
+      cnh: r.cnh,
+      cnhCliente: r.cnhCliente,
+      processo: r.processoAdmin,
+      tipoDecisao: r.tipoDecisao,
+      dataPublicacao: r.publicacao ? formatarData(r.publicacao) : '',
+      prazo: r.prazo,
+      dataFinal: r.dataFinal,
+      link: r.urlExtrato || '',
+    })),
+  }
+  fs.writeFileSync(caminho, JSON.stringify(payload, null, 2), 'utf8')
+  console.log(`  [JSON] resultados.json salvo (${resultados.length} registro(s)).`)
+  return caminho
 }
 
 export interface RelatorioEmail {
@@ -99,9 +157,7 @@ export interface RelatorioEmail {
   html: string
 }
 
-/**
- * Monta o relatório de e-mail, agrupado por edição, com link direto para cada publicação.
- */
+/** Monta o relatório de e-mail, agrupado por edição, com link direto para cada publicação. */
 export function gerarRelatorioEmail(resultados: ResultadoBusca[]): RelatorioEmail {
   if (resultados.length === 0) {
     return {

@@ -62,7 +62,7 @@ export function extrairDadosPessoa(resumo: string, nomeCliente: string): DadosPe
   const fimClause = trecho.indexOf(';')
   if (fimClause !== -1) trecho = trecho.slice(0, fimClause)
 
-  // CNH: "portador(a) da CNH nº 02317185728" — "nº" tolerante a variações.
+  // CNH: "portador(a) da CNH nº XXXXXXXXX" — "nº" tolerante a variações.
   const mCnh = trecho.match(/CNH\s*n?[oº°.\s]*([\d]{6,})/i)
 
   // Processo: "processo administrativo nº 3115/2025" ou, sem "nº", "processo administrativo 27778/2026".

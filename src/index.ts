@@ -3,7 +3,7 @@ import { getClientes } from './clients'
 import { buscarTodosClientes } from './searcher'
 import { processarMateria } from './parser'
 import { jaRegistrado, salvarResultados } from './db'
-import { gerarCSVs, gerarRelatorioEmail } from './report'
+import { gerarCSVs, gerarRelatorioEmail, gerarResultadosJSON } from './report'
 import { enviarEmail, emailConfigurado } from './notifier'
 import { CONFIG } from './config'
 import { Cliente, ResultadoBusca } from './types'
@@ -68,6 +68,7 @@ async function executarBusca(): Promise<void> {
   // 4. Gera os arquivos (sempre) e notifica por e-mail (se configurado)
   console.log('\n[4/4] Gerando relatório...')
   const csvs = gerarCSVs(novos)
+  gerarResultadosJSON(novos)
   const relatorio = gerarRelatorioEmail(novos)
 
   if (csvs.length > 0) {
