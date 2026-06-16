@@ -1,6 +1,0 @@
-# Modelo de lista de clientes — copie para clientes.txt e preencha.
-# Formato: NOME COMPLETO;CNH   (a CNH é opcional, mas necessária para o cruzamento)
-# Linhas iniciadas por # são ignoradas.
-JOAO DA SILVA;01234567890
-MARIA OLIVEIRA SOUZA;09876543210
-PEDRO HENRIQUE LIMA
