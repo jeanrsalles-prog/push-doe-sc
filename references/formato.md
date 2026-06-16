@@ -9,10 +9,6 @@
 - A CNH pode estar como texto ou número; zeros à esquerda perdidos pela planilha
   são tratados na comparação.
 
-## Alternativa em .txt
-
-Um cliente por linha, `NOME;CNH`. A CNH é opcional (sem ela, o cliente vira
-"A CONFERIR"). Linhas com `#` são ignoradas.
 
 ## API do DOE-SC
 
